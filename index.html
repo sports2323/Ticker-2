@@ -349,6 +349,22 @@ function esc(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+/* ---- Resilient fetch: tries direct first, falls back to a CORS proxy ---- */
+async function fetchJsonSafe(url){
+  try{
+    const res = await fetch(url);
+    if(res.ok) return await res.json();
+  }catch(e){ /* fall through to proxy */ }
+
+  try{
+    const proxied = 'https://corsproxy.io/?url=' + encodeURIComponent(url);
+    const res = await fetch(proxied);
+    if(res.ok) return await res.json();
+  }catch(e){ /* give up */ }
+
+  return null;
+}
+
 /* ---- Backdrop rotation / crossfade ---- */
 const backdropLayers = [document.getElementById('backdrop-a'), document.getElementById('backdrop-b')];
 let backdropIndex = 0;
@@ -411,9 +427,8 @@ function formatTime(dateStr){
 async function fetchTeamLeague(cfg){
   const items = [];
   try{
-    const res = await fetch(cfg.url);
-    if(!res.ok) return items;
-    const data = await res.json();
+    const data = await fetchJsonSafe(cfg.url);
+    if(!data) return items;
     const events = data.events || [];
     for(const ev of events){
       const comp = ev.competitions?.[0];
@@ -450,9 +465,8 @@ async function fetchTeamLeague(cfg){
 async function fetchGolfLeague(cfg){
   const items = [];
   try{
-    const res = await fetch(cfg.url);
-    if(!res.ok) return items;
-    const data = await res.json();
+    const data = await fetchJsonSafe(cfg.url);
+    if(!data) return items;
     const event = (data.events || [])[0];
     if(!event) return items;
 
@@ -488,9 +502,8 @@ async function fetchGolfLeague(cfg){
 async function fetchRacingLeague(cfg){
   const items = [];
   try{
-    const res = await fetch(cfg.url);
-    if(!res.ok) return items;
-    const data = await res.json();
+    const data = await fetchJsonSafe(cfg.url);
+    if(!data) return items;
     const event = (data.events || [])[0];
     if(!event) return items;
 
