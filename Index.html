@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Sports Ticker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rye&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0C1E3E;
+    --bg-edge: #050D1F;
+    --text: #F5F6F8;
+    --dim: #9AA6BE;
+    --live: #FFFFFF;
+    --line: #1E3A66;
+
+    --c-mlb: #14274E;
+    --c-nfl: #B8622E;
+    --c-cfb: #8C2A2A;
+    --c-epl: #5B3E9E;
+    --c-mls: #1E7A5F;
+    --c-soccer: #3E5C8A;
+    --c-pga: #2F6B3C;
+    --c-f1: #A61E2E;
+  }
+
+  *{ box-sizing: border-box; }
+  html, body{
+    margin:0; padding:0; height:100%;
+    overflow:hidden;
+    font-family:'Bebas Neue', sans-serif;
+    letter-spacing: 0.02em;
+  }
+
+  body{
+    position:relative;
+    background-color: var(--bg-edge);
+    background-image:
+      radial-gradient(ellipse 90% 60% at 50% 0%, rgba(255,255,255,0.10) 0%, rgba(5,13,31,0) 60%),
+      linear-gradient(160deg, #0C1E3E 0%, #081530 55%, #050D1F 100%);
+    background-size: cover;
+    background-position: center;
+  }
+
+  /* To use your own photo: set body.custom-wallpaper in HTML and --wallpaper-url below */
+  body.custom-wallpaper{
+    background-image:
+      linear-gradient(180deg, rgba(6,10,26,0.55) 0%, rgba(3,5,9,0.85) 100%),
+      var(--wallpaper-url);
+    background-size: cover;
+    background-position: center;
+  }
+
+  .backdrop{
+    position:fixed;
+    inset:0;
+    z-index:0;
+    background-size: cover;
+    background-position: center;
+    opacity:0;
+    transition: opacity 2.2s ease-in-out;
+  }
+
+  .backdrop.visible{ opacity:1; }
+
+  .backdrop::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    background: linear-gradient(180deg, rgba(6,10,26,0.45) 0%, rgba(3,5,9,0.82) 100%);
+  }
+
+  .hero, .rail{ z-index:1; }
+
+  .hero{
+    position:fixed;
+    top:0; left:0; right:0;
+    bottom: 9vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    gap: 0.6em;
+    padding: 2vh;
+  }
+
+  .hero-title{
+    color: var(--text);
+    font-family: 'Rye', cursive;
+    font-weight:400;
+    font-size: clamp(18px, 4.2vh, 46px);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  }
+
+  .hero-clock{
+    color: var(--dim);
+    font-weight:500;
+    font-size: clamp(14px, 2.4vh, 26px);
+    letter-spacing: 0.04em;
+  }
+
+  .hero-logos{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 2.2em;
+    margin-top: 1.2em;
+    flex-wrap: wrap;
+    max-width: 80vw;
+  }
+
+  .hero-logos img{
+    height: clamp(28px, 5vh, 56px);
+    width:auto;
+    opacity:0.85;
+    filter: drop-shadow(0 2px 10px rgba(0,0,0,0.6));
+  }
+
+  .rail{
+    position:fixed;
+    left:0; right:0; bottom:0;
+    height: 9vh;
+    min-height:64px;
+    max-height:110px;
+    background: linear-gradient(180deg, var(--bg) 0%, var(--bg-edge) 100%);
+    border-top: 3px solid var(--live);
+    display:flex;
+    align-items:stretch;
+  }
+
+  .rail-label{
+    flex: 0 0 auto;
+    display:flex;
+    align-items:center;
+    gap: 0.6em;
+    padding: 0 1.4em;
+    background: var(--bg-edge);
+    border-right: 2px solid var(--line);
+    color: var(--text);
+    font-weight:700;
+    font-size: clamp(14px, 2vh, 22px);
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+
+  .dot{
+    width: 0.55em; height: 0.55em;
+    border-radius:50%;
+    background: var(--live);
+    animation: pulse 1.6s ease-in-out infinite;
+    flex-shrink:0;
+  }
+
+  @keyframes pulse{
+    0%, 100%{ opacity:1; transform:scale(1); }
+    50%{ opacity:0.35; transform:scale(0.75); }
+  }
+
+  .clock{
+    color: var(--dim);
+    font-weight:500;
+    font-size: 0.62em;
+    letter-spacing: 0.04em;
+  }
+
+  .viewport{
+    flex: 1 1 auto;
+    position:relative;
+    overflow:hidden;
+  }
+
+  .track{
+    position:absolute;
+    top:0; bottom:0;
+    display:flex;
+    align-items:center;
+    white-space:nowrap;
+    will-change: transform;
+  }
+
+  .track.paused{ animation-play-state: paused; }
+
+  .item{
+    display:inline-flex;
+    align-items:center;
+    padding: 0 1.6em;
+    gap: 0.85em;
+    height:100%;
+  }
+
+  .tag{
+    font-weight:700;
+    font-size: clamp(11px, 1.5vh, 16px);
+    letter-spacing: 0.05em;
+    color: #fff;
+    padding: 0.28em 0.6em;
+    border-radius: 3px;
+    flex-shrink:0;
+  }
+
+  .tag.mlb{ background: var(--c-mlb); }
+  .tag.nfl{ background: var(--c-nfl); }
+  .tag.cfb{ background: var(--c-cfb); }
+  .tag.epl{ background: var(--c-epl); }
+  .tag.mls{ background: var(--c-mls); }
+  .tag.soccer{ background: var(--c-soccer); }
+  .tag.pga{ background: var(--c-pga); }
+  .tag.f1{ background: var(--c-f1); }
+
+  .matchup{
+    font-size: clamp(15px, 2.4vh, 26px);
+    font-weight:600;
+    color: var(--text);
+    display:inline-flex;
+    align-items:center;
+    gap: 0.4em;
+  }
+
+  .logo{
+    height: 1.15em;
+    width: 1.15em;
+    object-fit: contain;
+    vertical-align: middle;
+    flex-shrink:0;
+  }
+
+  .score{
+    font-weight:700;
+    color:#fff;
+  }
+
+  .status{
+    font-size: clamp(11px, 1.5vh, 16px);
+    font-weight:500;
+    color: var(--live);
+    letter-spacing:0.03em;
+  }
+
+  .status.final{ color: var(--dim); }
+
+  .sep{
+    color: var(--line);
+    font-size: 1.4em;
+    padding: 0 0.3em;
+  }
+
+  .loading{
+    color: var(--dim);
+    font-size: clamp(14px, 2vh, 20px);
+    font-weight:500;
+    padding: 0 1.6em;
+    display:flex;
+    align-items:center;
+    height:100%;
+  }
+</style>
+</head>
+<body>
+
+<!--
+  WALLPAPER: fill in image URLs below (see BACKDROPS in the script section)
+  to show stadium photos behind the ticker, either static or auto-rotating.
+-->
+<div class="backdrop" id="backdrop-a"></div>
+<div class="backdrop" id="backdrop-b"></div>
+
+<div class="hero">
+  <div class="hero-logos" id="heroLogos"></div>
+</div>
+
+<div class="rail">
+  <div class="rail-label">
+    <span class="dot"></span>
+    <span>SCORES</span>
+    <span class="clock" id="clock"></span>
+  </div>
+  <div class="viewport">
+    <div class="track paused" id="track">
+      <div class="loading">Loading live scores&hellip;</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG — edit this list to add/remove leagues or reorder them.
+   ESPN's public scoreboard endpoints, no API key required.
+   ============================================================ */
+const LEAGUES = [
+  { code: 'mlb',    tag: 'MLB',  type: 'team',  url: 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard' },
+  { code: 'nfl',    tag: 'NFL',  type: 'team',  url: 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard' },
+  { code: 'cfb',    tag: 'CFB',  type: 'team',  url: 'https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80' },
+  { code: 'epl',    tag: 'EPL',  type: 'team',  url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard' },
+  { code: 'mls',    tag: 'MLS',  type: 'team',  url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard' },
+  { code: 'soccer', tag: 'UCL',  type: 'team',  url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard' },
+  { code: 'soccer', tag: 'LIGA', type: 'team',  url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/scoreboard' },
+  { code: 'soccer', tag: 'SA',   type: 'team',  url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/ita.1/scoreboard' },
+  { code: 'soccer', tag: 'BUN',  type: 'team',  url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/scoreboard' },
+  { code: 'soccer', tag: 'L1',   type: 'team',  url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/fra.1/scoreboard' },
+  { code: 'pga',    tag: 'PGA',  type: 'golf',  url: 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard' },
+  { code: 'f1',     tag: 'F1',   type: 'racing', url: 'https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard' },
+];
+
+const REFRESH_MS = 60000;   // how often to refetch
+const PX_PER_SEC = 90;      // ticker scroll speed
+
+/* ============================================================
+   BACKDROPS — fill in image URLs to show stadium photos behind
+   the ticker. Leave a slot as '' to skip it.
+
+   MODE options:
+     'off'    — no photo, just the default dark gradient
+     'static' — always show BACKDROPS[0]
+     'rotate' — cycle through all filled slots with a crossfade
+   ============================================================ */
+const BACKDROP_MODE = 'off';        // 'off' | 'static' | 'rotate'
+const BACKDROP_INTERVAL_MS = 20000; // how long each image stays up in rotate mode
+
+const BACKDROPS = [
+  { name: 'Yankee Stadium',        url: '' },
+  { name: 'MetLife Stadium',       url: '' },
+  { name: 'Stamford Bridge',       url: '' },
+  { name: 'Audi Field',            url: '' },
+  { name: 'Boone Pickens Stadium', url: '' },
+  { name: 'St Andrews',            url: '' },
+  { name: 'Monaco',                url: '' },
+];
+
+const track = document.getElementById('track');
+
+function clockTick(){
+  const now = new Date();
+  const text = now.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' }) +
+    '  ' + now.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  const el = document.getElementById('clock');
+  const heroEl = document.getElementById('heroClock');
+  if (el) el.textContent = text;
+  if (heroEl) heroEl.textContent = text;
+}
+clockTick();
+setInterval(clockTick, 15000);
+
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ---- Backdrop rotation / crossfade ---- */
+const backdropLayers = [document.getElementById('backdrop-a'), document.getElementById('backdrop-b')];
+let backdropIndex = 0;
+let activeLayer = 0;
+
+function showBackdrop(url){
+  if(!url) return;
+  const nextLayer = 1 - activeLayer;
+  const el = backdropLayers[nextLayer];
+  el.style.backgroundImage = `url('${url}')`;
+  el.classList.add('visible');
+  backdropLayers[activeLayer].classList.remove('visible');
+  activeLayer = nextLayer;
+}
+
+function initBackdrops(){
+  const filled = BACKDROPS.filter(b => b.url);
+  if(BACKDROP_MODE === 'off' || filled.length === 0) return;
+
+  if(BACKDROP_MODE === 'static'){
+    showBackdrop(filled[0].url);
+    return;
+  }
+
+  if(BACKDROP_MODE === 'rotate'){
+    showBackdrop(filled[0].url);
+    let i = 0;
+    setInterval(() => {
+      i = (i + 1) % filled.length;
+      showBackdrop(filled[i].url);
+    }, BACKDROP_INTERVAL_MS);
+  }
+}
+initBackdrops();
+
+function statusText(comp, type){
+  const st = comp.status?.type || {};
+  if (st.state === 'in') {
+    if (type === 'team' && comp.status.period) {
+      const clock = comp.status.displayClock || '';
+      return { text: `${clock ? clock + ' ' : ''}${ordinalPeriod(comp.status.period, type)}`.trim() || 'LIVE', live:true };
+    }
+    return { text: st.shortDetail || 'LIVE', live:true };
+  }
+  if (st.state === 'post') return { text: st.shortDetail || 'FINAL', live:false };
+  return { text: st.shortDetail || formatTime(comp.date), live:false };
+}
+
+function ordinalPeriod(p, type){
+  if (type !== 'team') return '';
+  return `Q${p}`;
+}
+
+function formatTime(dateStr){
+  try{
+    return new Date(dateStr).toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  }catch(e){ return ''; }
+}
+
+async function fetchTeamLeague(cfg){
+  const items = [];
+  try{
+    const res = await fetch(cfg.url);
+    if(!res.ok) return items;
+    const data = await res.json();
+    const events = data.events || [];
+    for(const ev of events){
+      const comp = ev.competitions?.[0];
+      if(!comp) continue;
+      const competitors = comp.competitors || [];
+      const home = competitors.find(c => c.homeAway === 'home') || competitors[0];
+      const away = competitors.find(c => c.homeAway === 'away') || competitors[1];
+      if(!home || !away) continue;
+
+      const homeAbbr = home.team?.abbreviation || home.team?.shortDisplayName || '';
+      const awayAbbr = away.team?.abbreviation || away.team?.shortDisplayName || '';
+      const homeLogo = home.team?.logo || '';
+      const awayLogo = away.team?.logo || '';
+      const st = statusText(comp, cfg.type);
+      const scheduled = comp.status?.type?.state === 'pre';
+
+      const logoImg = (url, alt) => url
+        ? `<img class="logo" src="${esc(url)}" alt="${esc(alt)}" onerror="this.style.display='none'">`
+        : '';
+
+      items.push({
+        tagClass: cfg.code,
+        tag: cfg.tag,
+        logos: [awayLogo, homeLogo].filter(Boolean),
+        html: scheduled
+          ? `<span class="matchup">${logoImg(awayLogo, awayAbbr)}${esc(awayAbbr)} @ ${esc(homeAbbr)}${logoImg(homeLogo, homeAbbr)}</span><span class="status">${esc(st.text)}</span>`
+          : `<span class="matchup">${logoImg(awayLogo, awayAbbr)}${esc(awayAbbr)} <span class="score">${esc(away.score)}</span> &nbsp;&ndash;&nbsp; <span class="score">${esc(home.score)}</span> ${esc(homeAbbr)}${logoImg(homeLogo, homeAbbr)}</span><span class="status ${st.live ? '' : 'final'}">${esc(st.text)}</span>`
+      });
+    }
+  }catch(e){ /* skip league on failure */ }
+  return items;
+}
+
+async function fetchGolfLeague(cfg){
+  const items = [];
+  try{
+    const res = await fetch(cfg.url);
+    if(!res.ok) return items;
+    const data = await res.json();
+    const event = (data.events || [])[0];
+    if(!event) return items;
+
+    const name = event.shortName || event.name || 'PGA Tour';
+    const comp = event.competitions?.[0];
+    const state = comp?.status?.type?.state;
+
+    if(state !== 'in' && state !== 'post'){
+      items.push({
+        tagClass: 'pga',
+        tag: cfg.tag,
+        html: `<span class="matchup">${esc(name)}</span><span class="status">${esc(comp?.status?.type?.shortDetail || 'Upcoming')}</span>`
+      });
+      return items;
+    }
+
+    const competitors = (comp?.competitors || []).slice().sort((a,b) => (a.order ?? 999) - (b.order ?? 999)).slice(0,5);
+    const leaderStr = competitors.map((c, i) => {
+      const nm = c.athlete?.shortName || c.athlete?.displayName || '?';
+      const score = c.score ?? c.statistics?.find(s => s.name === 'scoreToPar')?.displayValue ?? 'E';
+      return `${i+1}. ${nm} (${score})`;
+    }).join('   ');
+
+    items.push({
+      tagClass: 'pga',
+      tag: cfg.tag,
+      html: `<span class="matchup">${esc(name)} &mdash; ${esc(leaderStr)}</span><span class="status ${state === 'in' ? '' : 'final'}">${state === 'in' ? 'LIVE' : 'FINAL'}</span>`
+    });
+  }catch(e){ /* skip on failure */ }
+  return items;
+}
+
+async function fetchRacingLeague(cfg){
+  const items = [];
+  try{
+    const res = await fetch(cfg.url);
+    if(!res.ok) return items;
+    const data = await res.json();
+    const event = (data.events || [])[0];
+    if(!event) return items;
+
+    const name = event.shortName || event.name || 'Formula 1';
+    const comp = event.competitions?.[0];
+    const state = comp?.status?.type?.state;
+
+    if(state !== 'in' && state !== 'post'){
+      items.push({
+        tagClass: 'f1',
+        tag: cfg.tag,
+        html: `<span class="matchup">${esc(name)}</span><span class="status">${esc(comp?.status?.type?.shortDetail || 'Upcoming')}</span>`
+      });
+      return items;
+    }
+
+    const competitors = (comp?.competitors || []).slice().sort((a,b) => (a.order ?? 999) - (b.order ?? 999)).slice(0,5);
+    const leaderStr = competitors.map((c, i) => {
+      const nm = c.athlete?.shortName || c.athlete?.displayName || c.vehicle?.manufacturer || '?';
+      return `${i+1}. ${nm}`;
+    }).join('   ');
+
+    items.push({
+      tagClass: 'f1',
+      tag: cfg.tag,
+      html: `<span class="matchup">${esc(name)} &mdash; ${esc(leaderStr)}</span><span class="status ${state === 'in' ? '' : 'final'}">${state === 'in' ? 'LIVE' : 'FINAL'}</span>`
+    });
+  }catch(e){ /* skip on failure */ }
+  return items;
+}
+
+async function buildTicker(){
+  const results = await Promise.all(LEAGUES.map(cfg =>
+    cfg.type === 'golf' ? fetchGolfLeague(cfg) :
+    cfg.type === 'racing' ? fetchRacingLeague(cfg) :
+    fetchTeamLeague(cfg)
+  ));
+  const flat = results.flat();
+
+  if(flat.length === 0){
+    track.innerHTML = '<div class="loading">No games found right now &mdash; check back soon.</div>';
+    track.classList.add('paused');
+    return;
+  }
+
+  const itemsHtml = flat.map(it =>
+    `<div class="item"><span class="tag ${it.tagClass}">${it.tag}</span>${it.html}</div><span class="sep">&bull;</span>`
+  ).join('');
+
+  // duplicate content so the scroll loops seamlessly
+  track.innerHTML = itemsHtml + itemsHtml;
+
+  // fill the big-screen area above the ticker with a handful of team logos
+  const heroLogos = document.getElementById('heroLogos');
+  if (heroLogos) {
+    const allLogos = flat.flatMap(it => it.logos || []);
+    const unique = [...new Set(allLogos)].slice(0, 8);
+    heroLogos.innerHTML = unique.map(url =>
+      `<img src="${esc(url)}" alt="" onerror="this.remove()">`
+    ).join('');
+  }
+  track.classList.remove('paused');
+  track.style.animation = 'none';
+  track.offsetHeight; // force reflow
+
+  requestAnimationFrame(() => {
+    const fullWidth = track.scrollWidth / 2;
+    const duration = fullWidth / PX_PER_SEC;
+    const styleId = 'ticker-scroll-style';
+    let styleEl = document.getElementById(styleId);
+    if(!styleEl){
+      styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = `
+      @keyframes tickerScroll {
+        from { transform: translateX(0); }
+        to   { transform: translateX(-${fullWidth}px); }
+      }
+      #track { animation: tickerScroll ${duration}s linear infinite; left:0; }
+    `;
+  });
+}
+
+buildTicker();
+setInterval(buildTicker, REFRESH_MS);
+</script>
+
+</body>
+</html>
