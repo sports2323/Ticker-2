@@ -556,15 +556,6 @@ async function buildTicker(){
   // duplicate content so the scroll loops seamlessly
   track.innerHTML = itemsHtml + itemsHtml;
 
-  // fill the big-screen area above the ticker with a handful of team logos
-  const heroLogos = document.getElementById('heroLogos');
-  if (heroLogos) {
-    const allLogos = flat.flatMap(it => it.logos || []);
-    const unique = [...new Set(allLogos)].slice(0, 8);
-    heroLogos.innerHTML = unique.map(url =>
-      `<img src="${esc(url)}" alt="" onerror="this.remove()">`
-    ).join('');
-  }
   track.classList.remove('paused');
   track.style.animation = 'none';
   track.offsetHeight; // force reflow
@@ -579,14 +570,31 @@ async function buildTicker(){
       styleEl.id = styleId;
       document.head.appendChild(styleEl);
     }
+    // Only the @keyframes definition lives in the stylesheet.
     styleEl.textContent = `
       @keyframes tickerScroll {
         from { transform: translateX(0); }
         to   { transform: translateX(-${fullWidth}px); }
       }
-      #track { animation: tickerScroll ${duration}s linear infinite; left:0; }
     `;
+    // The actual animation is applied as an inline style so it always
+    // takes effect (inline styles override any stylesheet rule).
+    track.style.left = '0';
+    track.style.animation = `tickerScroll ${duration}s linear infinite`;
   });
+
+  // fill the big-screen area above the ticker with a handful of team logos
+  // (wrapped so any failure here can never block the ticker animation above)
+  try{
+    const heroLogos = document.getElementById('heroLogos');
+    if (heroLogos) {
+      const allLogos = flat.flatMap(it => it.logos || []);
+      const unique = [...new Set(allLogos)].slice(0, 8);
+      heroLogos.innerHTML = unique.map(url =>
+        `<img src="${esc(url)}" alt="" onerror="this.remove()">`
+      ).join('');
+    }
+  }catch(e){ /* non-critical, safe to ignore */ }
 }
 
 buildTicker();
