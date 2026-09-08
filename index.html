@@ -269,9 +269,7 @@
 <div class="backdrop" id="backdrop-a"></div>
 <div class="backdrop" id="backdrop-b"></div>
 
-<div class="hero">
-  <div class="hero-logos" id="heroLogos"></div>
-</div>
+<div class="hero"></div>
 
 <div class="rail">
   <div class="rail-label">
@@ -318,17 +316,17 @@ const PX_PER_SEC = 90;      // ticker scroll speed
      'static' — always show BACKDROPS[0]
      'rotate' — cycle through all filled slots with a crossfade
    ============================================================ */
-const BACKDROP_MODE = 'off';        // 'off' | 'static' | 'rotate'
+const BACKDROP_MODE = 'rotate';     // 'off' | 'static' | 'rotate'
 const BACKDROP_INTERVAL_MS = 20000; // how long each image stays up in rotate mode
 
 const BACKDROPS = [
-  { name: 'Yankee Stadium',        url: '' },
-  { name: 'MetLife Stadium',       url: '' },
-  { name: 'Stamford Bridge',       url: '' },
-  { name: 'Audi Field',            url: '' },
-  { name: 'Boone Pickens Stadium', url: '' },
-  { name: 'St Andrews',            url: '' },
-  { name: 'Monaco',                url: '' },
+  { name: 'Yankee Stadium',        url: 'yankee.jpg' },
+  { name: 'MetLife Stadium',       url: 'metlife.jpg' },
+  { name: 'Stamford Bridge',       url: 'stamford.jpg' },
+  { name: 'Audi Field',            url: 'audi.jpg' },
+  { name: 'Boone Pickens Stadium', url: 'boone.jpg' },
+  { name: 'St Andrews',            url: 'standrews.jpg' },
+  { name: 'Monaco',                url: 'monaco.jpg' },
 ];
 
 const track = document.getElementById('track');
@@ -583,18 +581,6 @@ async function buildTicker(){
     track.style.animation = `tickerScroll ${duration}s linear infinite`;
   });
 
-  // fill the big-screen area above the ticker with a handful of team logos
-  // (wrapped so any failure here can never block the ticker animation above)
-  try{
-    const heroLogos = document.getElementById('heroLogos');
-    if (heroLogos) {
-      const allLogos = flat.flatMap(it => it.logos || []);
-      const unique = [...new Set(allLogos)].slice(0, 8);
-      heroLogos.innerHTML = unique.map(url =>
-        `<img src="${esc(url)}" alt="" onerror="this.remove()">`
-      ).join('');
-    }
-  }catch(e){ /* non-critical, safe to ignore */ }
 }
 
 buildTicker();
@@ -603,3 +589,4 @@ setInterval(buildTicker, REFRESH_MS);
 
 </body>
 </html>
+
