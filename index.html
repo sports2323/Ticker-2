@@ -24,6 +24,8 @@
     --c-soccer: #3E5C8A;
     --c-pga: #2F6B3C;
     --c-f1: #A61E2E;
+    --c-news: #4A5A7A;
+    --rail-h: 9vh;
   }
 
   *{ box-sizing: border-box; }
@@ -55,7 +57,9 @@
 
   .backdrop{
     position:fixed;
-    inset:0;
+    top: var(--rail-h);
+    bottom: var(--rail-h);
+    left:0; right:0;
     z-index:0;
     background-size: cover;
     background-position: center;
@@ -124,13 +128,31 @@
   .rail{
     position:fixed;
     left:0; right:0; bottom:0;
-    height: 9vh;
+    height: var(--rail-h);
     min-height:64px;
     max-height:110px;
     background: linear-gradient(180deg, var(--bg) 0%, var(--bg-edge) 100%);
     border-top: 3px solid var(--live);
     display:flex;
     align-items:stretch;
+    z-index:2;
+  }
+
+  .rail-top{
+    position:fixed;
+    left:0; right:0; top:0;
+    height: var(--rail-h);
+    min-height:64px;
+    max-height:110px;
+    background: linear-gradient(0deg, var(--bg) 0%, var(--bg-edge) 100%);
+    border-bottom: 3px solid var(--c-news);
+    display:flex;
+    align-items:stretch;
+    z-index:2;
+  }
+
+  .rail-top .tag{
+    background: var(--c-news);
   }
 
   .rail-label{
@@ -243,6 +265,17 @@
 
   .status.final{ color: var(--dim); }
 
+  .odds{
+    font-size: clamp(10px, 1.3vh, 14px);
+    font-weight:500;
+    color: var(--bg);
+    background: var(--text);
+    padding: 0.2em 0.55em;
+    border-radius: 3px;
+    letter-spacing: 0.02em;
+    margin-left: 0.3em;
+  }
+
   .sep{
     color: var(--line);
     font-size: 1.4em;
@@ -270,6 +303,17 @@
 <div class="backdrop" id="backdrop-b"></div>
 
 <div class="hero"></div>
+
+<div class="rail-top">
+  <div class="rail-label">
+    <span>NEWS</span>
+  </div>
+  <div class="viewport">
+    <div class="track paused" id="newsTrack">
+      <div class="loading">Loading headlines&hellip;</div>
+    </div>
+  </div>
+</div>
 
 <div class="rail">
   <div class="rail-label">
@@ -308,6 +352,26 @@ const REFRESH_MS = 60000;   // how often to refetch
 const PX_PER_SEC = 90;      // ticker scroll speed
 
 /* ============================================================
+   NEWS_LEAGUES — headline sources for the top ticker.
+   Mirrors the same sports/leagues as the scores ticker below.
+   ============================================================ */
+const NEWS_LEAGUES = [
+  { tag: 'MLB',  url: 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/news' },
+  { tag: 'NFL',  url: 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/news' },
+  { tag: 'CFB',  url: 'https://site.api.espn.com/apis/site/v2/sports/football/college-football/news' },
+  { tag: 'EPL',  url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/news' },
+  { tag: 'MLS',  url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/news' },
+  { tag: 'UCL',  url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/news' },
+  { tag: 'LIGA', url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/news' },
+  { tag: 'SA',   url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/ita.1/news' },
+  { tag: 'BUN',  url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/news' },
+  { tag: 'L1',   url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/fra.1/news' },
+  { tag: 'PGA',  url: 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/news' },
+  { tag: 'F1',   url: 'https://site.api.espn.com/apis/site/v2/sports/racing/f1/news' },
+];
+const NEWS_PER_LEAGUE = 2; // how many headlines to pull from each league
+
+/* ============================================================
    BACKDROPS — fill in image URLs to show stadium photos behind
    the ticker. Leave a slot as '' to skip it.
 
@@ -330,6 +394,7 @@ const BACKDROPS = [
 ];
 
 const track = document.getElementById('track');
+const newsTrack = document.getElementById('newsTrack');
 
 function clockTick(){
   const now = new Date();
@@ -443,6 +508,11 @@ async function fetchTeamLeague(cfg){
       const st = statusText(comp, cfg.type);
       const scheduled = comp.status?.type?.state === 'pre';
 
+      const oddsInfo = comp.odds?.[0];
+      const oddsChip = (scheduled && oddsInfo && oddsInfo.details)
+        ? `<span class="odds">${esc(oddsInfo.details)}${oddsInfo.overUnder ? ` &middot; O/U ${esc(oddsInfo.overUnder)}` : ''}</span>`
+        : '';
+
       const logoImg = (url, alt) => url
         ? `<img class="logo" src="${esc(url)}" alt="${esc(alt)}" onerror="this.style.display='none'">`
         : '';
@@ -452,7 +522,7 @@ async function fetchTeamLeague(cfg){
         tag: cfg.tag,
         logos: [awayLogo, homeLogo].filter(Boolean),
         html: scheduled
-          ? `<span class="matchup">${logoImg(awayLogo, awayAbbr)}${esc(awayAbbr)} @ ${esc(homeAbbr)}${logoImg(homeLogo, homeAbbr)}</span><span class="status">${esc(st.text)}</span>`
+          ? `<span class="matchup">${logoImg(awayLogo, awayAbbr)}${esc(awayAbbr)} @ ${esc(homeAbbr)}${logoImg(homeLogo, homeAbbr)}</span><span class="status">${esc(st.text)}</span>${oddsChip}`
           : `<span class="matchup">${logoImg(awayLogo, awayAbbr)}${esc(awayAbbr)} <span class="score">${esc(away.score)}</span> &nbsp;&ndash;&nbsp; <span class="score">${esc(home.score)}</span> ${esc(homeAbbr)}${logoImg(homeLogo, homeAbbr)}</span><span class="status ${st.live ? '' : 'final'}">${esc(st.text)}</span>`
       });
     }
@@ -533,6 +603,67 @@ async function fetchRacingLeague(cfg){
   return items;
 }
 
+async function fetchNewsHeadlines(cfg){
+  const items = [];
+  try{
+    const data = await fetchJsonSafe(cfg.url);
+    if(!data) return items;
+    const articles = (data.articles || []).slice(0, NEWS_PER_LEAGUE);
+    for(const a of articles){
+      const headline = a.headline || a.description;
+      if(!headline) continue;
+      items.push({ tag: cfg.tag, headline });
+    }
+  }catch(e){ /* skip this league's news on failure */ }
+  return items;
+}
+
+function animateTrack(el, styleId){
+  requestAnimationFrame(() => {
+    const fullWidth = el.scrollWidth / 2;
+    const duration = fullWidth / PX_PER_SEC;
+    let styleEl = document.getElementById(styleId);
+    if(!styleEl){
+      styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = `
+      @keyframes ${styleId}Keyframes {
+        from { transform: translateX(0); }
+        to   { transform: translateX(-${fullWidth}px); }
+      }
+    `;
+    el.style.left = '0';
+    el.style.animation = `${styleId}Keyframes ${duration}s linear infinite`;
+  });
+}
+
+async function buildNewsTicker(){
+  const results = await Promise.all(NEWS_LEAGUES.map(cfg => fetchNewsHeadlines(cfg)));
+  const flat = results.flat();
+
+  if(flat.length === 0){
+    newsTrack.innerHTML = '<div class="loading">No headlines available right now.</div>';
+    newsTrack.classList.add('paused');
+    return;
+  }
+
+  const itemsHtml = flat.map(it =>
+    `<div class="item"><span class="tag news">${esc(it.tag)}</span><span class="matchup">${esc(it.headline)}</span></div><span class="sep">&bull;</span>`
+  ).join('');
+
+  newsTrack.innerHTML = itemsHtml + itemsHtml;
+  newsTrack.classList.remove('paused');
+  newsTrack.style.animation = 'none';
+  newsTrack.offsetHeight; // force reflow
+
+  animateTrack(newsTrack, 'newsScroll');
+}
+
+buildNewsTicker();
+setInterval(buildNewsTicker, REFRESH_MS);
+
 async function buildTicker(){
   const results = await Promise.all(LEAGUES.map(cfg =>
     cfg.type === 'golf' ? fetchGolfLeague(cfg) :
@@ -589,4 +720,3 @@ setInterval(buildTicker, REFRESH_MS);
 
 </body>
 </html>
-
